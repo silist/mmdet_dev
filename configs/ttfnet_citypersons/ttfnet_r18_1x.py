@@ -90,7 +90,7 @@ data = dict(
 # img_per_gpu->2, lr=lr/8=0.002
 # for --autoscale-lr in train.py, 
 # have 2 gpu, lr=lr*gpu_nums/8=0.0005
-optimizer = dict(type='SGD', lr=0.002, momentum=0.9, weight_decay=0.0004,
+optimizer = dict(type='SGD', lr=0.006, momentum=0.9, weight_decay=0.0004,
                  paramwise_options=dict(bias_lr_mult=2., bias_decay_mult=0.))
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
@@ -99,7 +99,7 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1.0 / 5,
-    step=[9, 11])
+    step=[10, 22])
 checkpoint_config = dict(interval=1)
 log_config = dict(
     interval=20,
@@ -109,7 +109,7 @@ log_config = dict(
 # yapf:enable
 # runtime settings
 total_epochs = 24
-device_ids = range(8)
+# device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/citypersons/ttfnet18_1x_cls_2'

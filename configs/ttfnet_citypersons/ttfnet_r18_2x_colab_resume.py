@@ -2,7 +2,7 @@
 model = dict(
     type='TTFNet',
     # pretrained='modelzoo://resnet18',
-    pretrained='/content/gdrive/My Drive/Colab Notebooks/mmdet/models/resnet18-5c106cde.pth',
+    pretrained='/disk1/feigao/gits/Pedestron/models_pretrained/resnet18-5c106cde.pth',
     backbone=dict(
         type='ResNet',
         depth=18,
@@ -38,7 +38,7 @@ test_cfg = dict(
     max_per_img=100)
 # dataset settings
 dataset_type = 'CocoDataset'
-data_root = '/content/gdrive/My Drive/Colab Notebooks/datasets/citypersons/'
+data_root = '/disk1/feigao/projects/detection/dataset/citypersons/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
@@ -67,7 +67,7 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    imgs_per_gpu=10,
+    imgs_per_gpu=8,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
@@ -107,7 +107,7 @@ total_epochs = 24
 # device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '../work_dirs/ttfnet18_2x'
+work_dir = '../work_dirs/ttfnet18_2x_colab'
 load_from = None
-resume_from = None
+resume_from = '/disk1/feigao/gits/ttfnet_mmdet/checkpoints/ttfnet_r18_2x_colab/epoch_9.pth'
 workflow = [('train', 1)]

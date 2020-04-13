@@ -1,7 +1,9 @@
 # model settings
 model = dict(
-    type='AdaptedFasterRCNN',
-    pretrained='modelzoo://resnet50',
+    type='FasterRCNN',
+    # R50+FPN
+    # pretrained='modelzoo://resnet50',
+    pretrained='/disk1/feigao/gits/Pedestron/models_pretrained/resnet50-19c8e357.pth',
     backbone=dict(
         type='ResNet',
         depth=50,
@@ -24,6 +26,31 @@ model = dict(
         anchor_strides=[4, 8, 16, 32, 64],
         target_means=[.0, .0, .0, .0],
         target_stds=[1.0, 1.0, 1.0, 1.0],
+    # R18+FPN
+    # pretrained='/disk1/feigao/gits/Pedestron/models_pretrained/resnet18-5c106cde.pth',
+    # backbone=dict(
+    #     type='ResNet',
+    #     depth=18,
+    #     num_stages=4,
+    #     out_indices=(0, 1, 2, 3),
+    #     frozen_stages=1,
+    #     norm_eval=False,
+    #     style='pytorch'),
+    # neck=dict(
+    #     type='FPN',
+    #     in_channels=[64, 128, 256, 512],
+    #     out_channels=64,
+    #     num_outs=5),
+    # rpn_head=dict(
+    #     type='RPNHead',
+    #     in_channels=64,
+    #     feat_channels=64,
+    #     anchor_scales=[8],
+    #     # anchor_ratios=[0.5, 1.0, 2.0],
+    #     anchor_ratios=[0.5, 0.65, 0.8, 0.95, 1.1, 1.25, 1.4, 1.55, 1.7, 1.85, 2],
+    #     anchor_strides=[4, 8, 16, 32, 64],
+    #     target_means=[.0, .0, .0, .0],
+    #     target_stds=[1.0, 1.0, 1.0, 1.0],
         loss_cls=dict(
             type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0),
         loss_bbox=dict(type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0)),
@@ -99,15 +126,16 @@ test_cfg = dict(
     # e.g., nms=dict(type='soft_nms', iou_thr=0.5, min_score=0.05)
 )
 # dataset settings
-dataset_type = 'CityPersonsDataset'
-data_root = '/disk1/feigao/projects/detection/dataset/citypersons/'
+dataset_type = 'CocoDataset'
+data_root = '/disk1/feigao/gits/Pedestron/datasets/CityPersons'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
-        type='Resize', img_scale=[(2048, 800), (2048, 1024)], keep_ratio=True),
+        # type='Resize', img_scale=(2048, 1024),
+        type='Resize', img_scale=(1280, 640), keep_ratio=False),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
@@ -118,10 +146,11 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(2048, 1024),
+        # img_scale=(2048, 1024),
+        img_scale=(1280, 640),
         flip=False,
         transforms=[
-            dict(type='Resize', keep_ratio=True),
+            dict(type='Resize', keep_ratio=False),
             dict(type='RandomFlip'),
             dict(type='Normalize', **img_norm_cfg),
             dict(type='Pad', size_divisor=32),
@@ -130,32 +159,26 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    imgs_per_gpu=1,
+    imgs_per_gpu=6,
     workers_per_gpu=2,
     train=dict(
-        type='RepeatDataset',
-        times=8,
-        dataset=dict(
-            type=dataset_type,
-            ann_file=data_root +
-            'annotations/instancesonly_filtered_gtFine_train.json',
-            img_prefix=data_root + 'train/',
-            pipeline=train_pipeline)),
+        type=dataset_type,
+        ann_file=data_root + '/train.json',
+        img_prefix=data_root,
+        pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
-        ann_file=data_root +
-        'annotations/instancesonly_filtered_gtFine_val.json',
-        img_prefix=data_root + 'val/',
+        ann_file=data_root + '/val_gt_for_mmdetction.json',
+        img_prefix=data_root + '/leftImg8bit_trainvaltest/leftImg8bit/val/', 
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
-        ann_file=data_root +
-        'annotations/instancesonly_filtered_gtFine_val.json',
-        img_prefix=data_root + 'val/',
+        ann_file=data_root + '/val_gt_for_mmdetction.json',
+        img_prefix=data_root + '/leftImg8bit_trainvaltest/leftImg8bit/val/', 
         pipeline=test_pipeline))
 # optimizer
 # lr is set for a batch size of 8
-optimizer = dict(type='Adam', lr=0.01)
+optimizer = dict(type='Adam', lr=0.005)
 # optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 optimizer_config = {}
 # learning policy
@@ -168,17 +191,17 @@ lr_config = dict(
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=100,
+    interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 8  # actual epoch = 8 * 8 = 64
+total_epochs = 24
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/disk1/feigao/projects/detection/work_dirs/cityscapes/adapted_faster_rcnn_r50_fpn_1x_citypersons'
+work_dir = './work_dirs/citypersons/faster_rcnn_r50_fpn_e50'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

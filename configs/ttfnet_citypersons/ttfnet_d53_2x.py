@@ -1,7 +1,8 @@
 # model settings
 model = dict(
     type='TTFNet',
-    pretrained='./pretrain/darknet53.pth',
+    # pretrained='./pretrain/darknet53.pth',
+    pretrained='/content/gdrive/My Drive/Colab Notebooks/mmdet/models/darknet53_pretrain-9ec35d.pth',
     backbone=dict(
         type='DarknetV3',
         layers=[1, 2, 8, 8, 4],
