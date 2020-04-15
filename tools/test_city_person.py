@@ -9,16 +9,32 @@ import time
 import mmcv
 import torch
 import torch.distributed as dist
-from mmcv.runner import load_checkpoint, get_dist_info
+from mmcv.runner import load_checkpoint, get_dist_info, init_dist
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 
-from mmdet.apis import init_dist
-from mmdet.core import results2json, coco_eval, wrap_fp16_model
+from mmdet.core import wrap_fp16_model
+from mmdet.core.evaluation.coco_utils import coco_eval
 from mmdet.datasets import build_dataloader, build_dataset
 from mmdet.models import build_detector
 
-from tools.cityPerson.eval_demo import validate
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 
+
+def validate(annFile, dt_path):
+    mean_MR = []
+    my_id_setup = []
+    for id_setup in range(0, 4):
+        cocoGt = COCO(annFile)
+        cocoDt = cocoGt.loadRes(dt_path)
+        imgIds = sorted(cocoGt.getImgIds())
+        cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
+        cocoEval.params.imgIds = imgIds
+        cocoEval.evaluate(id_setup)
+        cocoEval.accumulate()
+        mean_MR.append(cocoEval.summarize_nofile(id_setup))
+        my_id_setup.append(id_setup)
+    return mean_MR
 
 def single_gpu_test(model, data_loader, show=False, save_img=False, save_img_dir=''):
     model.eval()
@@ -108,8 +124,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='MMDet test detector')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
-    parser.add_argument('checkpoint_start', type=int, default=1)
-    parser.add_argument('checkpoint_end', type=int, default=100)
+    # parser.add_argument('checkpoint_start', type=int, default=1)
+    # parser.add_argument('checkpoint_end', type=int, default=100)
     parser.add_argument('--out', help='output result file')
     parser.add_argument(
         '--eval',
@@ -135,91 +151,165 @@ def parse_args():
     return args
 
 
+# def main():
+#     args = parse_args()
+
+#     if args.out is not None and not args.out.endswith(('.json', '.pickle')):
+#         raise ValueError('The output file must be a pkl file.')
+#     for i in range(args.checkpoint_start, args.checkpoint_end):
+#         cfg = mmcv.Config.fromfile(args.config)
+#         # set cudnn_benchmark
+#         if cfg.get('cudnn_benchmark', False):
+#             torch.backends.cudnn.benchmark = True
+#         cfg.model.pretrained = None
+#         cfg.data.test.test_mode = True
+
+#         # init distributed env first, since logger depends on the dist info.
+#         if args.launcher == 'none':
+#             distributed = False
+#         else:
+#             distributed = True
+#             init_dist(args.launcher, **cfg.dist_params)
+
+#         # build the dataloader
+#         # TODO: support multiple images per gpu (only minor changes are needed)
+#         dataset = build_dataset(cfg.data.test)
+#         data_loader = build_dataloader(
+#             dataset,
+#             imgs_per_gpu=1,
+#             workers_per_gpu=cfg.data.workers_per_gpu,
+#             dist=distributed,
+#             shuffle=False)
+
+#         # build the model and load checkpoint
+#         model = build_detector(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
+#         fp16_cfg = cfg.get('fp16', None)
+#         if fp16_cfg is not None:
+#             wrap_fp16_model(model)
+#         if not args.mean_teacher:
+#             while not osp.exists(args.checkpoint + str(i) + '.pth'):
+#                 time.sleep(5)
+#             while i+1 != args.checkpoint_end and not osp.exists(args.checkpoint + str(i+1) + '.pth'):
+#                 time.sleep(5)
+#             checkpoint = load_checkpoint(model, args.checkpoint + str(i) + '.pth', map_location='cpu')
+#         else:
+#             while not osp.exists(args.checkpoint + str(i) + '.pth.stu'):
+#                 time.sleep(5)
+#             while i+1 != args.checkpoint_end and not osp.exists(args.checkpoint + str(i+1) + '.pth.stu'):
+#                 time.sleep(5)
+#             checkpoint = load_checkpoint(model, args.checkpoint + str(i) + '.pth.stu', map_location='cpu')
+#             checkpoint['meta'] = dict()
+#         # old versions did not save class info in checkpoints, this walkaround is
+#         # for backward compatibility
+#         if 'CLASSES' in checkpoint['meta']:
+#             model.CLASSES = checkpoint['meta']['CLASSES']
+#         else:
+#             model.CLASSES = dataset.CLASSES
+
+#         if not distributed:
+#             model = MMDataParallel(model, device_ids=[0])
+#             outputs = single_gpu_test(model, data_loader, args.show, args.save_img, args.save_img_dir)
+#         else:
+#             model = MMDistributedDataParallel(model.cuda())
+#             outputs = multi_gpu_test(model, data_loader, args.tmpdir)
+
+#         res = []
+#         for id, boxes in enumerate(outputs):
+#             boxes=boxes[0]
+#             if type(boxes) == list:
+#                 boxes = boxes[0]
+#             boxes[:, [2, 3]] -= boxes[:, [0, 1]]
+#             if len(boxes) > 0:
+#                 for box in boxes:
+#                     # box[:4] = box[:4] / 0.6
+#                     temp = dict()
+#                     temp['image_id'] = id+1
+#                     temp['category_id'] = 1
+#                     temp['bbox'] = box[:4].tolist()
+#                     temp['score'] = float(box[4])
+#                     res.append(temp)
+
+#         with open(args.out, 'w') as f:
+#             json.dump(res, f)
+
+#         val_gt_path = r'/disk1/feigao/projects/detection/dataset/citypersons/annotations/elephant_citypersons_val_gt_for_mmdetction.json'
+#         MRs = validate('datasets/CityPersons/val_gt.json', args.out)
+#         print('Checkpoint %d: [Reasonable: %.2f%%], [Reasonable_Small: %.2f%%], [Heavy: %.2f%%], [All: %.2f%%]'
+#               % (i, MRs[0] * 100, MRs[1] * 100, MRs[2] * 100, MRs[3] * 100))
+
 def main():
     args = parse_args()
 
     if args.out is not None and not args.out.endswith(('.json', '.pickle')):
         raise ValueError('The output file must be a pkl file.')
-    for i in range(args.checkpoint_start, args.checkpoint_end):
-        cfg = mmcv.Config.fromfile(args.config)
-        # set cudnn_benchmark
-        if cfg.get('cudnn_benchmark', False):
-            torch.backends.cudnn.benchmark = True
-        cfg.model.pretrained = None
-        cfg.data.test.test_mode = True
 
-        # init distributed env first, since logger depends on the dist info.
-        if args.launcher == 'none':
-            distributed = False
-        else:
-            distributed = True
-            init_dist(args.launcher, **cfg.dist_params)
+    cfg = mmcv.Config.fromfile(args.config)
+    # set cudnn_benchmark
+    if cfg.get('cudnn_benchmark', False):
+        torch.backends.cudnn.benchmark = True
+    cfg.model.pretrained = None
+    cfg.data.test.test_mode = True
 
-        # build the dataloader
-        # TODO: support multiple images per gpu (only minor changes are needed)
-        dataset = build_dataset(cfg.data.test)
-        data_loader = build_dataloader(
-            dataset,
-            imgs_per_gpu=1,
-            workers_per_gpu=cfg.data.workers_per_gpu,
-            dist=distributed,
-            shuffle=False)
+    # init distributed env first, since logger depends on the dist info.
+    if args.launcher == 'none':
+        distributed = False
+    else:
+        distributed = True
+        init_dist(args.launcher, **cfg.dist_params)
 
-        # build the model and load checkpoint
-        model = build_detector(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
-        fp16_cfg = cfg.get('fp16', None)
-        if fp16_cfg is not None:
-            wrap_fp16_model(model)
-        if not args.mean_teacher:
-            while not osp.exists(args.checkpoint + str(i) + '.pth'):
-                time.sleep(5)
-            while i+1 != args.checkpoint_end and not osp.exists(args.checkpoint + str(i+1) + '.pth'):
-                time.sleep(5)
-            checkpoint = load_checkpoint(model, args.checkpoint + str(i) + '.pth', map_location='cpu')
-        else:
-            while not osp.exists(args.checkpoint + str(i) + '.pth.stu'):
-                time.sleep(5)
-            while i+1 != args.checkpoint_end and not osp.exists(args.checkpoint + str(i+1) + '.pth.stu'):
-                time.sleep(5)
-            checkpoint = load_checkpoint(model, args.checkpoint + str(i) + '.pth.stu', map_location='cpu')
-            checkpoint['meta'] = dict()
-        # old versions did not save class info in checkpoints, this walkaround is
-        # for backward compatibility
-        if 'CLASSES' in checkpoint['meta']:
-            model.CLASSES = checkpoint['meta']['CLASSES']
-        else:
-            model.CLASSES = dataset.CLASSES
+    # build the dataloader
+    # TODO: support multiple images per gpu (only minor changes are needed)
+    dataset = build_dataset(cfg.data.test)
+    data_loader = build_dataloader(
+        dataset,
+        imgs_per_gpu=1,
+        workers_per_gpu=cfg.data.workers_per_gpu,
+        dist=distributed,
+        shuffle=False)
 
-        if not distributed:
-            model = MMDataParallel(model, device_ids=[0])
-            outputs = single_gpu_test(model, data_loader, args.show, args.save_img, args.save_img_dir)
-        else:
-            model = MMDistributedDataParallel(model.cuda())
-            outputs = multi_gpu_test(model, data_loader, args.tmpdir)
+    # build the model and load checkpoint
+    model = build_detector(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
+    fp16_cfg = cfg.get('fp16', None)
+    if fp16_cfg is not None:
+        wrap_fp16_model(model)
+    checkpoint = load_checkpoint(model, args.checkpoint, map_location='cpu')
+    # old versions did not save class info in checkpoints, this walkaround is
+    # for backward compatibility
+    if 'CLASSES' in checkpoint['meta']:
+        model.CLASSES = checkpoint['meta']['CLASSES']
+    else:
+        model.CLASSES = dataset.CLASSES
 
-        res = []
-        for id, boxes in enumerate(outputs):
-            boxes=boxes[0]
-            if type(boxes) == list:
-                boxes = boxes[0]
-            boxes[:, [2, 3]] -= boxes[:, [0, 1]]
-            if len(boxes) > 0:
-                for box in boxes:
-                    # box[:4] = box[:4] / 0.6
-                    temp = dict()
-                    temp['image_id'] = id+1
-                    temp['category_id'] = 1
-                    temp['bbox'] = box[:4].tolist()
-                    temp['score'] = float(box[4])
-                    res.append(temp)
+    if not distributed:
+        model = MMDataParallel(model, device_ids=[0])
+        outputs = single_gpu_test(model, data_loader, args.show, args.save_img, args.save_img_dir)
+    else:
+        model = MMDistributedDataParallel(model.cuda())
+        outputs = multi_gpu_test(model, data_loader, args.tmpdir)
 
-        with open(args.out, 'w') as f:
-            json.dump(res, f)
+    res = []
+    for id, boxes in enumerate(outputs):
+        boxes=boxes[0]
+        if type(boxes) == list:
+            boxes = boxes[0]
+        boxes[:, [2, 3]] -= boxes[:, [0, 1]]
+        if len(boxes) > 0:
+            for box in boxes:
+                # box[:4] = box[:4] / 0.6
+                temp = dict()
+                temp['image_id'] = id+1
+                temp['category_id'] = 1
+                temp['bbox'] = box[:4].tolist()
+                temp['score'] = float(box[4])
+                res.append(temp)
 
-        MRs = validate('datasets/CityPersons/val_gt.json', args.out)
-        print('Checkpoint %d: [Reasonable: %.2f%%], [Reasonable_Small: %.2f%%], [Heavy: %.2f%%], [All: %.2f%%]'
-              % (i, MRs[0] * 100, MRs[1] * 100, MRs[2] * 100, MRs[3] * 100))
+    with open(args.out, 'w') as f:
+        json.dump(res, f)
 
+    val_gt_path = r'/disk1/feigao/projects/detection/dataset/citypersons/annotations/elephant_citypersons_val_gt_for_mmdetction.json'
+    MRs = validate(val_gt_path, args.out)
+    print('Checkpoint %d: [Reasonable: %.2f%%], [Reasonable_Small: %.2f%%], [Heavy: %.2f%%], [All: %.2f%%]'
+            % (MRs[0] * 100, MRs[1] * 100, MRs[2] * 100, MRs[3] * 100))
 
 if __name__ == '__main__':
     main()
