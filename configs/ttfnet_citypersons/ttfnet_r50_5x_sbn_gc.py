@@ -10,11 +10,12 @@ model = dict(
         frozen_stages=1,
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
-        style='pytorch'),
+        style='pytorch',
         gcb=dict(ratio=1. / 4., ),
         stage_with_gcb=(False, True, True, True)),
     neck=None,
     bbox_head=dict(
+        type='TTFHead',
         # inplanes=(64, 128, 256, 512),
         inplanes=(256, 512, 1024, 2048),
         head_conv=128,
@@ -69,7 +70,7 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    imgs_per_gpu=4,
+    imgs_per_gpu=3,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
@@ -87,7 +88,7 @@ data = dict(
         img_prefix=data_root,
         pipeline=test_pipeline))
 # optimizer
-optimizer = dict(type='SGD', lr=0.004, momentum=0.9, weight_decay=0.0004,
+optimizer = dict(type='SGD', lr=0.003, momentum=0.9, weight_decay=0.0004,
                  paramwise_options=dict(bias_lr_mult=2., bias_decay_mult=0.))
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
@@ -99,7 +100,7 @@ lr_config = dict(
     step=[55, 66])
 checkpoint_config = dict(interval=4)
 log_config = dict(
-    interval=5,
+    interval=30,
     hooks=[
         dict(type='TextLoggerHook'),
     ])
@@ -108,6 +109,7 @@ log_config = dict(
 total_epochs = 72
 # device_ids = range(8)
 dist_params = dict(backend='nccl')
+find_unused_parameters = True
 log_level = 'INFO'
 work_dir = './work_dirs/citypersons/ttfnet_r50_5x_sbn_gc'
 load_from = None
