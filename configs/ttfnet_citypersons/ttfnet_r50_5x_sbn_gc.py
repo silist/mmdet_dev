@@ -11,15 +11,17 @@ model = dict(
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         style='pytorch'),
+        gcb=dict(ratio=1. / 4., ),
+        stage_with_gcb=(False, True, True, True)),
     neck=None,
     bbox_head=dict(
-        type='TTFHead',
-        inplanes=(64, 128, 256, 512),
+        # inplanes=(64, 128, 256, 512),
+        inplanes=(256, 512, 1024, 2048),
         head_conv=128,
         wh_conv=64,
         hm_head_conv_num=2,
         wh_head_conv_num=2,
-        num_classes=81,
+        num_classes=2,
         wh_offset_base=16,
         wh_agnostic=True,
         wh_gaussian=True,
@@ -38,7 +40,7 @@ test_cfg = dict(
     max_per_img=100)
 # dataset settings
 dataset_type = 'CocoDataset'
-data_root = '/disk1/feigao/projects/detection/dataset/citypersons/'
+data_root = '/disk/feigao/projects/detection/dataset/citypersons/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
@@ -94,7 +96,7 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=1.0 / 5,
-    step=[42, 55])
+    step=[55, 66])
 checkpoint_config = dict(interval=4)
 log_config = dict(
     interval=5,
@@ -107,7 +109,7 @@ total_epochs = 72
 # device_ids = range(8)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/citypersons/ttfnet_r50_5x'
+work_dir = './work_dirs/citypersons/ttfnet_r50_5x_sbn_gc'
 load_from = None
 resume_from = None
 # resume_from = 'work_dirs/citypersons/ttfnet_r50_5x/latest.pth'
