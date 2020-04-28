@@ -1,0 +1,1 @@
+[Reasonable: 10.30%], [Bare: 7.56%], [Partial: 9.56%], [Heavy: 40.81%]

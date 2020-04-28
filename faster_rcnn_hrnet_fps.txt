@@ -1,0 +1,9 @@
+(ttfnet_mmdet) feigao@ubuntu16:/disk1/feigao/gits/mmdet_dev$ python tools/test_citypersons.py configs/elephant/faster_rcnn_hrnet.py /disk1/feigao/gits/mmdet_dev/models_pretrained/faster_rcnn_citypersons_epoch_1.pth
+.stu --eval mrs
+/disk1/feigao/gits/mmdet_dev/models_pretrained/faster_rcnn_citypersons_epoch_1.pth.stu
+loading annotations into memory...
+Done (t=0.07s)
+creating index...
+index created!
+[>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>] 500/500, 0.5 task/s, elapsed: 1078s, ETA:     0s/disk1/feigao/gits/mmdet_dev/models_pretrained/faster_rcnn_citypersons_epoch_1.pth.stu
+[Reasonable: 10.30%], [Bare: 7.56%], [Partial: 9.56%], [Heavy: 40.81%]
